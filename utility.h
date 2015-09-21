@@ -17,10 +17,10 @@
 
 using namespace std;
 
-// clients_list save all the clients's socket
+// ä¿å­˜æ‰€æœ‰çš„å®¢æˆ·ç«¯socket
 list<int> clients_list;
 
-/**********************   macro defintion **************************/
+
 // server ip
 #define SERVER_IP "127.0.0.1"
 
@@ -42,22 +42,13 @@ list<int> clients_list;
 
 #define CAUTION "There is only one int the char room!"
 
-/**********************   some function **************************/
-/**
-  * @param sockfd: socket descriptor
-  * @return 0
-**/
+
 int setnonblocking(int sockfd)
 {
     fcntl(sockfd, F_SETFL, fcntl(sockfd, F_GETFD, 0)| O_NONBLOCK);
     return 0;
 }
 
-/**
-  * @param epollfd: epoll handle
-  * @param fd: socket descriptor
-  * @param enable_et : enable_et = true, epoll use ET; otherwise LT
-**/
 void addfd( int epollfd, int fd, bool enable_et )
 {
     struct epoll_event ev;
@@ -70,36 +61,31 @@ void addfd( int epollfd, int fd, bool enable_et )
     printf("fd added to epoll!\n\n");
 }
 
-/**
-  * @param clientfd: socket descriptor
-  * @return : len
-**/
 int sendBroadcastmessage(int clientfd)
 {
-    // buf[BUF_SIZE] receive new chat message
-    // message[BUF_SIZE] save format message
+    // buf[BUF_SIZE] ä¿å­˜æ–°çš„æ¶ˆæ¯ä¿¡æ¯
     char buf[BUF_SIZE], message[BUF_SIZE];
     bzero(buf, BUF_SIZE);
     bzero(message, BUF_SIZE);
 
-    // receive message
+    // æ¥æ”¶æ¶ˆæ¯
     printf("read from client(clientID = %d)\n", clientfd);
     int len = recv(clientfd, buf, BUF_SIZE, 0);
 
-    if(len == 0)  // len = 0 means the client closed connection
+    if(len == 0)  // len = 0 è¡¨ç¤ºå®¢æˆ·ç«¯å…³é—­äº†è¿æ¥
     {
         close(clientfd);
-        clients_list.remove(clientfd); //server remove the client
+        clients_list.remove(clientfd); //æœåŠ¡ç«¯ç§»é™¤å®¢æˆ·ç«¯
         printf("ClientID = %d closed.\n now there are %d client in the char room\n", clientfd, (int)clients_list.size());
 
     }
-    else  //broadcast message 
+    else  //ç¾¤å‘æ¶ˆæ¯ 
     {
-        if(clients_list.size() == 1) { // this means There is only one int the char room
+        if(clients_list.size() == 1) { // åªæœ‰ä¸€ä¸ªç”¨æˆ·åœ¨çº¿
             send(clientfd, CAUTION, strlen(CAUTION), 0);
             return len;
         }
-        // format message to broadcast
+        
         sprintf(message, SERVER_MESSAGE, clientfd, buf);
 
         list<int>::iterator it;
@@ -112,90 +98,3 @@ int sendBroadcastmessage(int clientfd)
     return len;
 }
 #endif // UTILITY_H_INCLUDED
-3.3 ·şÎñ¶ËÍêÕûÔ´Âë
-
-ÔÚÉÏÃæµÄ»ù´¡ÉÏ¡£·şÎñ¶ËµÄ´úÂë¾ÍºÜÈİÒ×Ğ´³öÁË
-
-#include "utility.h"
-
-int main(int argc, char *argv[])
-{
-    //·şÎñÆ÷IP + port
-    struct sockaddr_in serverAddr;
-    serverAddr.sin_family = PF_INET;
-    serverAddr.sin_port = htons(SERVER_PORT);
-    serverAddr.sin_addr.s_addr = inet_addr(SERVER_IP);
-    //´´½¨¼àÌısocket
-    int listener = socket(PF_INET, SOCK_STREAM, 0);
-    if(listener < 0) { perror("listener"); exit(-1);}
-    printf("listen socket created \n");
-    //°ó¶¨µØÖ·
-    if( bind(listener, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
-        perror("bind error");
-        exit(-1);
-    }
-    //¼àÌı
-    int ret = listen(listener, 5);
-    if(ret < 0) { perror("listen error"); exit(-1);}
-    printf("Start to listen: %s\n", SERVER_IP);
-    //ÔÚÄÚºËÖĞ´´½¨ÊÂ¼ş±í
-    int epfd = epoll_create(EPOLL_SIZE);
-    if(epfd < 0) { perror("epfd error"); exit(-1);}
-    printf("epoll created, epollfd = %d\n", epfd);
-    static struct epoll_event events[EPOLL_SIZE];
-    //ÍùÄÚºËÊÂ¼ş±íÀïÌí¼ÓÊÂ¼ş
-    addfd(epfd, listener, true);
-    //Ö÷Ñ­»·
-    while(1)
-    {
-        //epoll_events_count±íÊ¾¾ÍĞ÷ÊÂ¼şµÄÊıÄ¿
-        int epoll_events_count = epoll_wait(epfd, events, EPOLL_SIZE, -1);
-        if(epoll_events_count < 0) {
-            perror("epoll failure");
-            break;
-        }
-
-        printf("epoll_events_count = %d\n", epoll_events_count);
-        //´¦ÀíÕâepoll_events_count¸ö¾ÍĞ÷ÊÂ¼ş
-        for(int i = 0; i < epoll_events_count; ++i)
-        {
-            int sockfd = events[i].data.fd;
-            //ĞÂÓÃ»§Á¬½Ó
-            if(sockfd == listener)
-            {
-                struct sockaddr_in client_address;
-                socklen_t client_addrLength = sizeof(struct sockaddr_in);
-                int clientfd = accept( listener, ( struct sockaddr* )&client_address, &client_addrLength );
-
-                printf("client connection from: %s : % d(IP : port), clientfd = %d \n",
-                inet_ntoa(client_address.sin_addr),
-                ntohs(client_address.sin_port),
-                clientfd);
-
-                addfd(epfd, clientfd, true);
-
-                // ·şÎñ¶ËÓÃlist±£´æÓÃ»§Á¬½Ó
-                clients_list.push_back(clientfd);
-                printf("Add new clientfd = %d to epoll\n", clientfd);
-                printf("Now there are %d clients int the chat room\n", (int)clients_list.size());
-
-                // ·şÎñ¶Ë·¢ËÍ»¶Ó­ĞÅÏ¢  
-                printf("welcome message\n");                
-                char message[BUF_SIZE];
-                bzero(message, BUF_SIZE);
-                sprintf(message, SERVER_WELCOME, clientfd);
-                int ret = send(clientfd, message, BUF_SIZE, 0);
-                if(ret < 0) { perror("send error"); exit(-1); }
-            }
-            //´¦ÀíÓÃ»§·¢À´µÄÏûÏ¢£¬²¢¹ã²¥£¬Ê¹ÆäËûÓÃ»§ÊÕµ½ĞÅÏ¢
-            else 
-            {   
-                int ret = sendBroadcastmessage(sockfd);
-                if(ret < 0) { perror("error");exit(-1); }
-            }
-        }
-    }
-    close(listener); //¹Ø±Õsocket
-    close(epfd);    //¹Ø±ÕÄÚºË
-    return 0;
-}
